@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Premium violet-based task management palette */
+    --background: 0 0% 98%;
+    --foreground: 240 10% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 8%;
+
+    /* Rich violet primary — distinctive from generic indigo/blue */
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 5% 94%;
+    --secondary-foreground: 240 10% 15%;
+
+    --muted: 240 5% 94%;
+    --muted-foreground: 240 5% 46%;
+
+    /* Light violet tint for hover states */
+    --accent: 262 60% 96%;
+    --accent-foreground: 262 83% 45%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 6% 88%;
+    --input: 240 6% 88%;
+    --ring: 262 83% 58%;
+
+    --radius: 0.625rem;
+
+    /* Status colors */
+    --status-pending: 38 92% 50%;
+    --status-in-progress: 217 91% 60%;
+    --status-completed: 142 71% 45%;
+
+    /* Priority colors */
+    --priority-low: 240 5% 58%;
+    --priority-medium: 25 95% 53%;
+    --priority-high: 0 84% 60%;
+  }
+
+  .dark {
+    /* Deep navy-dark — not pure black, has cool undertone */
+    --background: 240 14% 8%;
+    --foreground: 240 6% 93%;
+
+    --card: 240 10% 11%;
+    --card-foreground: 240 6% 93%;
+
+    --popover: 240 10% 11%;
+    --popover-foreground: 240 6% 93%;
+
+    /* Lighter violet for dark mode legibility */
+    --primary: 263 65% 68%;
+    --primary-foreground: 240 14% 8%;
+
+    --secondary: 240 8% 17%;
+    --secondary-foreground: 240 6% 90%;
+
+    --muted: 240 8% 16%;
+    --muted-foreground: 240 5% 55%;
+
+    --accent: 240 8% 19%;
+    --accent-foreground: 240 6% 90%;
+
+    --destructive: 0 62% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 7% 18%;
+    --input: 240 7% 18%;
+    --ring: 263 65% 68%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02" 1, "cv03" 1, "cv04" 1, "cv11" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Consistent focus ring */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}

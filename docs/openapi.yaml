@@ -1,0 +1,628 @@
+openapi: '3.0.3'
+info:
+  title: Task Management API
+  version: '1.0.0'
+  description: >
+    RESTful API for the Task Management System. All task data lives exclusively
+    in backend process memory — no database, no external storage. Data resets
+    to the seed state whenever the backend process restarts.
+  contact:
+    name: Task Management System
+servers:
+  - url: http://localhost:3001/api
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Service health check
+  - name: Tasks
+    description: Create, read, update, and delete tasks
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────────────────────────
+paths:
+
+  # ── GET /health ─────────────────────────────────────────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns a 200 confirming the service is up and responding.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is operational
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                ok:
+                  summary: Healthy response
+                  value:
+                    status: ok
+                    timestamp: '2025-01-15T10:30:00.000Z'
+
+  # ── GET /tasks ───────────────────────────────────────────────────────────────
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      description: >
+        Returns a paginated, filtered, and sorted list of tasks.
+        All query parameters are optional and composable — they are applied in
+        the order: search → status filter → priority filter → sort → paginate.
+      operationId: listTasks
+      parameters:
+        - name: search
+          in: query
+          description: >
+            Case-insensitive substring search applied to both the `title` and
+            `description` fields simultaneously.
+          required: false
+          schema:
+            type: string
+          example: CI/CD
+        - name: status
+          in: query
+          description: Filter results to tasks with exactly this status value.
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+        - name: priority
+          in: query
+          description: Filter results to tasks with exactly this priority value.
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskPriority'
+        - name: sortBy
+          in: query
+          description: >
+            Field to sort by. Defaults to `createdAt` when omitted.
+            For `priority`, the sort weight is low < medium < high.
+            Null `dueDate` values always appear last regardless of direction.
+          required: false
+          schema:
+            type: string
+            enum: [createdAt, dueDate, priority, title]
+          example: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort direction. Defaults to `desc` when omitted.
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+          example: desc
+        - name: page
+          in: query
+          description: 1-indexed page number. Defaults to `1` when omitted.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+        - name: pageSize
+          in: query
+          description: >
+            Number of tasks per page. Defaults to `25` when omitted.
+            Maximum value is `100`.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          example: 25
+      responses:
+        '200':
+          description: Paginated list of tasks matching the query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTasksResponse'
+              examples:
+                withResults:
+                  summary: Page of tasks
+                  value:
+                    data:
+                      - id: '550e8400-e29b-41d4-a716-446655440001'
+                        title: Set up CI/CD pipeline
+                        description: >-
+                          Configure GitHub Actions workflows to run lint,
+                          type-check, and tests on every pull request.
+                        status: pending
+                        priority: low
+                        dueDate: '2024-03-15'
+                        createdAt: '2024-02-01T09:00:00.000Z'
+                        updatedAt: '2024-02-01T09:00:00.000Z'
+                    total: 1
+                    page: 1
+                    pageSize: 25
+                emptyPage:
+                  summary: No tasks match the filters
+                  value:
+                    data: []
+                    total: 0
+                    page: 1
+                    pageSize: 25
+        '400':
+          description: One or more query parameters are invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                invalidStatus:
+                  summary: Unknown status value
+                  value:
+                    message: Validation failed
+                    errors:
+                      status: "Invalid enum value. Expected 'pending' | 'in_progress' | 'completed', received 'done'"
+                invalidPage:
+                  summary: Page number below minimum
+                  value:
+                    message: Validation failed
+                    errors:
+                      page: Number must be greater than or equal to 1
+
+    # ── POST /tasks ─────────────────────────────────────────────────────────────
+    post:
+      tags: [Tasks]
+      summary: Create a task
+      description: >
+        Creates a new task. The server generates `id`, `createdAt`, and
+        `updatedAt` — any values for those fields supplied by the client are
+        silently ignored.
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskDto'
+            examples:
+              fullPayload:
+                summary: All fields provided
+                value:
+                  title: Implement login page
+                  description: Build the login form with email and password fields, connect to the auth API, and add client-side validation.
+                  status: pending
+                  priority: high
+                  dueDate: '2025-06-30'
+              minimal:
+                summary: Required fields only (status and priority default to pending/medium)
+                value:
+                  title: Review pull request
+                  description: Review the open PR for the authentication feature and leave feedback.
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              examples:
+                created:
+                  summary: Newly created task
+                  value:
+                    id: '7f3c9b1e-4a2d-4e8f-9c0d-1b2a3c4d5e6f'
+                    title: Implement login page
+                    description: Build the login form with email and password fields, connect to the auth API, and add client-side validation.
+                    status: pending
+                    priority: high
+                    dueDate: '2025-06-30'
+                    createdAt: '2025-01-15T10:30:00.000Z'
+                    updatedAt: '2025-01-15T10:30:00.000Z'
+        '400':
+          description: Request body failed validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                missingRequired:
+                  summary: Required fields absent
+                  value:
+                    message: Validation failed
+                    errors:
+                      title: Title is required
+                      description: Description is required
+                invalidEnum:
+                  summary: Invalid enum value
+                  value:
+                    message: Validation failed
+                    errors:
+                      priority: "Invalid enum value. Expected 'low' | 'medium' | 'high', received 'urgent'"
+                invalidDate:
+                  summary: Non-existent calendar date
+                  value:
+                    message: Validation failed
+                    errors:
+                      dueDate: dueDate is not a valid calendar date
+
+  # ── /tasks/{id} ──────────────────────────────────────────────────────────────
+  /tasks/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+
+    get:
+      tags: [Tasks]
+      summary: Get a task by ID
+      description: Returns the full task object for the given task ID.
+      operationId: getTask
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              examples:
+                found:
+                  summary: Existing task
+                  value:
+                    id: '550e8400-e29b-41d4-a716-446655440001'
+                    title: Set up CI/CD pipeline
+                    description: Configure GitHub Actions workflows to run lint, type-check, and tests on every pull request.
+                    status: pending
+                    priority: low
+                    dueDate: '2024-03-15'
+                    createdAt: '2024-02-01T09:00:00.000Z'
+                    updatedAt: '2024-02-01T09:00:00.000Z'
+        '404':
+          description: No task exists with the given ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  summary: Task not found
+                  value:
+                    message: 'Task with id "abc123" not found.'
+
+    put:
+      tags: [Tasks]
+      summary: Update a task
+      description: >
+        Replaces all mutable fields on the task (full update, not a partial
+        patch). The server updates `updatedAt` to the current timestamp;
+        `createdAt` is never modified. Client-supplied values for `id`,
+        `createdAt`, or `updatedAt` in the body are ignored.
+      operationId: updateTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskDto'
+            examples:
+              update:
+                summary: Mark a task in-progress and shift its due date
+                value:
+                  title: Set up CI/CD pipeline
+                  description: Configure GitHub Actions and add deployment steps for staging.
+                  status: in_progress
+                  priority: medium
+                  dueDate: '2025-04-30'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              examples:
+                updated:
+                  summary: Updated task
+                  value:
+                    id: '550e8400-e29b-41d4-a716-446655440001'
+                    title: Set up CI/CD pipeline
+                    description: Configure GitHub Actions and add deployment steps for staging.
+                    status: in_progress
+                    priority: medium
+                    dueDate: '2025-04-30'
+                    createdAt: '2024-02-01T09:00:00.000Z'
+                    updatedAt: '2025-01-15T11:00:00.000Z'
+        '400':
+          description: Request body failed validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                missingTitle:
+                  summary: Title is empty
+                  value:
+                    message: Validation failed
+                    errors:
+                      title: Title is required
+        '404':
+          description: No task exists with the given ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  summary: Task not found
+                  value:
+                    message: 'Task with id "abc123" not found.'
+
+    delete:
+      tags: [Tasks]
+      summary: Delete a task
+      description: Permanently removes the task from the in-memory store.
+      operationId: deleteTask
+      responses:
+        '200':
+          description: Task deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+              examples:
+                deleted:
+                  summary: Successful deletion
+                  value:
+                    message: Task deleted successfully
+        '404':
+          description: No task exists with the given ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  summary: Task not found
+                  value:
+                    message: 'Task with id "abc123" not found.'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Components
+# ─────────────────────────────────────────────────────────────────────────────
+components:
+
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: UUID of the task
+      schema:
+        type: string
+        maxLength: 128
+      example: '550e8400-e29b-41d4-a716-446655440001'
+
+  schemas:
+
+    # ── Primitive enums ──────────────────────────────────────────────────────
+    TaskStatus:
+      type: string
+      enum: [pending, in_progress, completed]
+      description: Current workflow status of the task
+      example: pending
+
+    TaskPriority:
+      type: string
+      enum: [low, medium, high]
+      description: Relative priority level of the task
+      example: medium
+
+    # ── Core domain object ───────────────────────────────────────────────────
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - status
+        - priority
+        - dueDate
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          description: >
+            Server-generated UUID v4. Unique across all tasks in the store.
+            Never set or changed by the client.
+          example: '550e8400-e29b-41d4-a716-446655440001'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Short summary of the task (stored trimmed).
+          example: Set up CI/CD pipeline
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Detailed explanation of the task (stored trimmed).
+          example: Configure GitHub Actions workflows to run lint and tests.
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        dueDate:
+          type: string
+          nullable: true
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: >
+            Target completion date in ISO 8601 calendar format (YYYY-MM-DD),
+            or `null` when no due date has been set.
+          example: '2025-06-30'
+        createdAt:
+          type: string
+          format: date-time
+          description: >
+            ISO 8601 timestamp set by the server when the task was created.
+            Never modified after creation.
+          example: '2025-01-15T10:30:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: >
+            ISO 8601 timestamp set by the server on every successful update.
+            Always greater than or equal to `createdAt`.
+          example: '2025-01-15T10:30:00.000Z'
+
+    # ── Request DTOs ─────────────────────────────────────────────────────────
+    CreateTaskDto:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Short summary of the task (will be trimmed before storing).
+          example: Implement login page
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Detailed explanation of the task (will be trimmed before storing).
+          example: Build the login form with email and password fields.
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+          description: Defaults to `pending` when omitted.
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+          description: Defaults to `medium` when omitted.
+        dueDate:
+          type: string
+          nullable: true
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: >
+            Optional due date in YYYY-MM-DD format. Must be a real calendar
+            date (e.g. 2025-02-30 is invalid). Omit or pass `null` for no
+            due date.
+          example: '2025-06-30'
+
+    UpdateTaskDto:
+      type: object
+      required:
+        - title
+        - description
+        - status
+        - priority
+      description: >
+        Full replacement body — all fields except `dueDate` are required.
+        Server-managed fields (`id`, `createdAt`, `updatedAt`) are ignored.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Short summary of the task (will be trimmed before storing).
+          example: Set up CI/CD pipeline
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Detailed explanation of the task (will be trimmed before storing).
+          example: Configure GitHub Actions and add deployment steps for staging.
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        dueDate:
+          type: string
+          nullable: true
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: >
+            Due date in YYYY-MM-DD format, or `null` to clear the due date.
+          example: '2025-04-30'
+
+    # ── Response wrappers ────────────────────────────────────────────────────
+    PaginatedTasksResponse:
+      type: object
+      required: [data, total, page, pageSize]
+      description: Paginated response envelope returned by GET /tasks.
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+          description: Tasks for the requested page.
+        total:
+          type: integer
+          minimum: 0
+          description: >
+            Total number of tasks matching the active filters and search query
+            (before pagination is applied).
+          example: 42
+        page:
+          type: integer
+          minimum: 1
+          description: The current page number (echoes the `page` request parameter).
+          example: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Tasks per page (echoes the `pageSize` request parameter).
+          example: 25
+
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      description: Returned by GET /health when the service is running.
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          description: Always `ok` when the service is healthy.
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+          description: Current server timestamp at the time of the health check.
+          example: '2025-01-15T10:30:00.000Z'
+
+    DeleteResponse:
+      type: object
+      required: [message]
+      description: Confirmation body returned after a successful deletion.
+      properties:
+        message:
+          type: string
+          description: Human-readable confirmation message.
+          example: Task deleted successfully
+
+    ErrorResponse:
+      type: object
+      required: [message]
+      description: Generic error body returned on 404 and 500 responses.
+      properties:
+        message:
+          type: string
+          description: Human-readable description of the error.
+          example: 'Task with id "abc123" not found.'
+
+    ValidationError:
+      type: object
+      required: [message]
+      description: >
+        Error body returned on 400 responses when request validation fails.
+        The `errors` map contains one entry per invalid field.
+      properties:
+        message:
+          type: string
+          description: Top-level summary message.
+          example: Validation failed
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          description: >
+            Field-level error messages keyed by field name.
+            All invalid fields are reported in a single response.
+          example:
+            title: Title is required
+            dueDate: dueDate is not a valid calendar date
