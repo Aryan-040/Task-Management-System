@@ -94,8 +94,9 @@ export class ApiError extends Error {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+import { API_URL } from '../config';
+
+const BASE_URL = API_URL;
 
 /**
  * Generic fetch wrapper.
